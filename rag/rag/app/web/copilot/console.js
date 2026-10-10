@@ -393,6 +393,15 @@ function decisionBlock(action) {
   const note = h("textarea", { id: "decision-note", rows: "2", maxlength: "1000", placeholder: "Reason (required to reject)" });
   const error = h("div", { class: "decision-error", role: "alert", hidden: true });
   const send = async (verb) => {
+    // The API enforces both rules too; checking here saves a round trip and points at the field.
+    const missing = !name.value.trim() ? [name, "Enter your name."]
+      : verb === "reject" && !note.value.trim() ? [note, "Write a reason to reject this draft."] : null;
+    if (missing) {
+      error.textContent = missing[1];
+      error.hidden = false;
+      missing[0].focus();
+      return;
+    }
     for (const b of buttons) b.disabled = true;
     error.hidden = true;
     try {
