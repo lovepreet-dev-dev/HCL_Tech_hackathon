@@ -311,3 +311,14 @@ def test_highlights_quote_a_sentence_of_each_cited_section(copilot: Copilot) -> 
     for citation, sentence in r.highlights.items():
         assert sentence in copilot.kb.get(citation).page_content
     assert r.steps[0].startswith("Escalate now to Store Manager + POS Support")
+
+
+@pytest.mark.parametrize("message", [
+    "A customer slipped near the treadmill display.",
+    "A kid fell off the display bike at ST006.",
+])
+def test_a_person_getting_hurt_is_p1(copilot: Copilot, message: str) -> None:
+    """The SOP makes an active customer safety issue P1, even without equipment wording."""
+    r = copilot.ask(message, persist=False)
+    assert r.priority == "P1" and r.category == "Product Quality and Safety"
+    assert r.escalation.required

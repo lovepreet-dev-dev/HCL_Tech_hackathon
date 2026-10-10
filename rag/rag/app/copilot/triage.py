@@ -60,7 +60,7 @@ CATEGORY_TERMS: dict[str, list[tuple[str, float]]] = {
     ],
     "Product Quality and Safety": [
         (r"quality", 3), (r"defect|defective|crack|split|seams?|warped|torn|broken|broke|stitching", 3),
-        (r"injur|hurt|unsafe|recall|hazard|malfunction|safety|loosened|slipped|shock|fire|smoke", 3.5),
+        (r"injur|hurt|unsafe|recall|hazard|malfunction|safety|loosened|slipped|tripped|fell (off|over|down|from)|fainted|shock|fire|smoke", 3.5),
         (r"complaints?", 1),
     ],
     "Customer Service": [
@@ -100,7 +100,10 @@ _DEGRADED = re.compile(
 _SAFETY = re.compile(
     r"injur|hurt|bleed|electric shock|caught fire|smoke|burn|recall|unsafe|hazard|safety risk|"
     r"(treadmill|exercise bike|bike|rowing machine|cross trainer|machine|equipment|demo unit|helmet)[^.]{0,40}"
-    r"(slipped|loosen|collapsed|broke|snapped|malfunction|sparking|fell|came off)",
+    r"(slipped|loosen|collapsed|broke|snapped|malfunction|sparking|fell|came off)|"
+    # A person getting hurt or nearly hurt is an "active customer safety issue" (SOP P1).
+    r"\b(customer|shopper|child|kid|boy|girl|person|someone|staff|employee|associate|cashier)\b[^.]{0,30}"
+    r"\b(slipped|tripped|fell|fainted|collapsed|was hit|got hit|got cut|was cut)\b",
     re.IGNORECASE,
 )
 _LEGAL = re.compile(r"legal|lawsuit|police|consumer court|compliance (risk|breach)", re.IGNORECASE)
