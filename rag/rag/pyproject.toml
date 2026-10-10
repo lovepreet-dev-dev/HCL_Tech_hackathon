@@ -56,6 +56,10 @@ ignore = ["E501"]
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares dependencies and parameters as argument defaults; that is its API, not a bug.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body", "fastapi.File", "fastapi.Form", "fastapi.Header"]
+
 [tool.mypy]
 python_version = "3.10"
 warn_return_any = true
