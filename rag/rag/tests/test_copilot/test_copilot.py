@@ -17,8 +17,7 @@ from app.copilot.actions import ActionStore
 from app.copilot.orchestrator import Copilot
 from app.copilot.safety import SafetyAgent, mask_pii
 from app.ingestion.chunking import chunk_markdown_by_heading, heading_slug
-from app.models.copilot import CopilotAction
-from app.models.database import Base
+from app.models.database import Base, _register_models
 
 ROOT = Path(__file__).resolve().parents[2]
 CASES = list(csv.DictReader((ROOT / "usecase3/evaluation/public_test_cases.csv").open(encoding="utf-8")))
@@ -38,7 +37,8 @@ def copilot() -> Copilot:
 def action_store() -> ActionStore:
     """Drafts go to a private in-memory database, never the real one."""
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(bind=engine, tables=[CopilotAction.__table__])
+    _register_models()
+    Base.metadata.create_all(bind=engine)
     return ActionStore(sessionmaker(bind=engine))
 
 

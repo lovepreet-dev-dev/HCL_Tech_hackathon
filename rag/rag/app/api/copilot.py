@@ -11,18 +11,20 @@ import json
 import queue
 import threading
 from collections.abc import Iterator
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from app.api.deps import get_current_user_optional
 from app.config.settings import get_settings
-from app.copilot.actions import get_action_store
+from app.copilot.actions import DecisionNotAllowedError, DraftNotFoundError, get_action_store
+from app.copilot.eval_runs import get_evaluation_runs
 from app.copilot.orchestrator import Copilot, get_copilot
 from app.copilot.schemas import CopilotRequest, CopilotResponse
+from app.models.user import User
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -150,51 +152,80 @@ def predictions() -> list[dict[str, str]]:
 
 
 # ── Background evaluation job ──────────────────────────────────────────────
+# The run's progress lives in the database (evaluation_runs), so any app instance
+# can report it; the run itself executes in a thread of the instance that started it.
 
 
 class EvaluateRequest(BaseModel):
     use_llm: bool = True
 
 
-_job_lock = threading.Lock()
-_job: dict[str, Any] = {"state": "idle"}
-
-
-def _run_job(use_llm: bool) -> None:
+def _run_job(run_id: int, use_llm: bool) -> None:
     from app.copilot.evaluation import evaluate
 
-    def progress(done: int, total: int, current: str) -> None:
-        with _job_lock:
-            _job.update(done=done, total=total, current=current)
-
+    runs = get_evaluation_runs()
     try:
         shared = get_copilot()
         copilot = shared if shared.llm_enabled == use_llm else Copilot(use_llm=use_llm)
-        doc = evaluate(copilot, _eval_dir() / "public_test_cases.csv", progress=progress)
-        with _job_lock:
-            _job.update(state="done", finished_at=datetime.now().isoformat(timespec="seconds"), mode=doc["mode"])
+        doc = evaluate(
+            copilot, _eval_dir() / "public_test_cases.csv",
+            progress=lambda done, total, current: runs.progress(run_id, done, total, current),
+        )
+        runs.finish(run_id, mode=doc["mode"])
     except Exception as exc:  # report, never crash the server
-        logger.error("copilot_evaluation_failed", error=str(exc))
-        with _job_lock:
-            _job.update(state="error", error=str(exc), finished_at=datetime.now().isoformat(timespec="seconds"))
+        logger.error("copilot_evaluation_failed", error=str(exc), run_id=run_id)
+        runs.finish(run_id, error=str(exc))
 
 
 @router.post("/evaluate", summary="Start an evaluation run in the background")
 def start_evaluation(request: EvaluateRequest) -> dict[str, Any]:
-    with _job_lock:
-        if _job.get("state") == "running":
-            return dict(_job)
-        _job.clear()
-        _job.update(
-            state="running", use_llm=request.use_llm, done=0, total=0, current="",
-            started_at=datetime.now().isoformat(timespec="seconds"),
-        )
-        snapshot = dict(_job)
-    threading.Thread(target=_run_job, args=(request.use_llm,), daemon=True).start()
-    return snapshot
+    run, created = get_evaluation_runs().start(request.use_llm)
+    if created:
+        threading.Thread(target=_run_job, args=(run["run_id"], request.use_llm), daemon=True).start()
+    return run
 
 
 @router.get("/evaluate", summary="Progress of the current or last evaluation run")
 def evaluation_status() -> dict[str, Any]:
-    with _job_lock:
-        return dict(_job)
+    return get_evaluation_runs().latest()
+
+
+# ── Decisions on drafts (human in the loop) ────────────────────────────────
+
+
+class DecisionRequest(BaseModel):
+    decided_by: str = Field(..., min_length=1, max_length=100, description="Who decides, e.g. a name or persona")
+    role: str | None = Field(default=None, max_length=50, examples=["Store Manager"])
+    note: str | None = Field(default=None, max_length=1000, description="Why; required to reject")
+
+
+def _decide(action_id: int, decision: str, body: DecisionRequest, user: User | None) -> dict[str, Any]:
+    decided_by, user_id = body.decided_by.strip(), None
+    if get_settings().enable_auth:
+        # With login on, the decision belongs to the signed-in person, not to a typed name.
+        if user is None:
+            raise HTTPException(status_code=401, detail="Sign in to approve or reject drafts.")
+        decided_by, user_id = user.name, user.id
+    note = (body.note or "").strip() or None
+    if decision == "rejected" and not note:
+        raise HTTPException(status_code=422, detail="Give a reason to reject a draft.")
+    try:
+        return get_action_store().decide(action_id, decision, decided_by, body.role, note, user_id)
+    except DraftNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except DecisionNotAllowedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/actions/{action_id}/approve", summary="Approve a draft that waits for a person's approval")
+def approve_action(
+    action_id: int, body: DecisionRequest, user: User | None = Depends(get_current_user_optional),
+) -> dict[str, Any]:
+    return _decide(action_id, "approved", body, user)
+
+
+@router.post("/actions/{action_id}/reject", summary="Reject a draft that waits for a person's approval (reason required)")
+def reject_action(
+    action_id: int, body: DecisionRequest, user: User | None = Depends(get_current_user_optional),
+) -> dict[str, Any]:
+    return _decide(action_id, "rejected", body, user)

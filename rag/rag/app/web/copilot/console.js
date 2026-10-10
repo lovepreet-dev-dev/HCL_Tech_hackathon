@@ -371,11 +371,68 @@ async function openCitation(citation, highlight) {
   }
 }
 
+/** A draft's state: waiting for a decision, approved, rejected, or its plain status. */
+function draftStatus(a) {
+  if (a.needs_decision) return h("span", { class: "tag warn", text: "Needs decision" });
+  if (a.decision) return h("span", { class: `tag ${a.decision.decision === "approved" ? "ok" : "bad"}`, text: humanize(a.decision.decision) });
+  return h("span", { class: "muted", text: a.status || "" });
+}
+
+/** The recorded decision, or the approve/reject form for a draft that waits for one. */
+function decisionBlock(action) {
+  if (action.decision) {
+    const d = action.decision;
+    return h("div", { class: "decision" },
+      h("div", {}, h("span", { class: `tag ${d.decision === "approved" ? "ok" : "bad"}`, text: humanize(d.decision) }),
+        h("span", { text: ` by ${d.decided_by}${d.role ? ` (${d.role})` : ""} · ${fmtTime(d.decided_at)}` })),
+      d.note ? h("p", { class: "muted", text: d.note }) : null);
+  }
+  if (!action.needs_decision || !action.action_id) return null;
+  const role = $("#persona").value;
+  const name = h("input", { id: "decision-by", type: "text", value: role, maxlength: "100", autocomplete: "name" });
+  const note = h("textarea", { id: "decision-note", rows: "2", maxlength: "1000", placeholder: "Reason (required to reject)" });
+  const error = h("div", { class: "decision-error", role: "alert", hidden: true });
+  const send = async (verb) => {
+    for (const b of buttons) b.disabled = true;
+    error.hidden = true;
+    try {
+      const updated = await api(`/actions/${action.action_id}/${verb}`, {
+        method: "POST", body: { decided_by: name.value.trim(), role, note: note.value.trim() || null },
+      });
+      Object.assign(action, updated); // the ticket card holds the same object
+      const i = draftRows.findIndex((x) => x.action_id === updated.action_id);
+      if (i >= 0) draftRows[i] = updated;
+      openDraft(action);
+      refreshDraftCount();
+    } catch (err) {
+      error.textContent = err.message;
+      error.hidden = false;
+      for (const b of buttons) b.disabled = false;
+    }
+  };
+  const buttons = [
+    h("button", { type: "button", class: "btn btn-primary", text: "Approve", onclick: () => send("approve") }),
+    h("button", { type: "button", class: "btn", text: "Reject", onclick: () => send("reject") }),
+  ];
+  return h("div", { class: "decision-form" },
+    h("div", { class: "kpi-label", text: "Your decision" }),
+    h("label", { for: "decision-by", text: `Name (deciding as ${role})` }), name,
+    h("label", { for: "decision-note", text: "Note" }), note,
+    error, h("div", { class: "decision-actions" }, buttons));
+}
+
+const DECISION_KEYS = new Set(["type", "action_id", "needs_decision", "decision"]);
+
 function openDraft(action) {
   const type = DRAFT_TYPES[action.type] || humanize(action.type || "draft");
-  const rows = Object.entries(action).filter(([k, v]) => k !== "type" && v !== null && v !== "" && !(Array.isArray(v) && !v.length));
+  const rows = Object.entries(action).filter(([k, v]) => !DECISION_KEYS.has(k) && v !== null && v !== "" && !(Array.isArray(v) && !v.length));
   openPanel(type, action.id || action.channel || "",
-    h("div", { class: "panel-why", text: "A draft only. Nothing is sent, approved or charged until a person acts on it." }),
+    h("div", { class: "panel-why", text: action.needs_decision
+      ? "Waiting for a person's decision. Approving records who decided and why; nothing is sent or charged."
+      : action.decision
+        ? "Decision recorded. The copilot still sends and charges nothing; staff carry it out in the store systems."
+        : "A draft only. Nothing is sent, approved or charged until a person acts on it." }),
+    decisionBlock(action),
     h("div", { class: "table-wrap" }, h("table", { class: "data" }, h("tbody", {}, rows.map(([k, v]) => h("tr", {},
       h("td", { class: "muted", style: "white-space:nowrap", text: humanize(k.replace(/_/g, "-")) }),
       h("td", { class: typeof v === "number" ? "num" : "", text: Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : String(v) })))))),
@@ -878,7 +935,7 @@ function draftsList(r) {
   if (!r.actions.length) return h("div", { class: "muted", text: "No drafts for this answer." });
   return h("ul", { class: "evidence" }, r.actions.map((a) => h("li", {}, h("button", { type: "button", class: "ev-item", onclick: () => openDraft(a) },
     h("span", { class: "ev-title" }, h("b", { text: DRAFT_TYPES[a.type] || humanize(a.type) }), h("span", { class: "mono", text: a.id || a.channel || "" })),
-    h("span", { class: "muted", text: [a.queue || a.to, a.status].filter(Boolean).join(" · ") })))));
+    h("span", { class: "muted", text: [a.queue || a.to, a.needs_decision ? "needs a decision" : a.status].filter(Boolean).join(" · ") })))));
 }
 
 function dataPanel(r) {
@@ -1319,7 +1376,7 @@ function renderDrafts() {
     h("td", { class: "mono", text: a.queue || a.channel || a.to || "—" }),
     h("td", {}, a.priority ? h("span", { class: `pill ${a.priority}`, text: a.priority }) : "—"),
     h("td", { class: "mono", text: a.store_id || (a.stores || []).join(", ") || "—" }),
-    h("td", { class: "muted", text: a.status || "" }))))))));
+    h("td", {}, draftStatus(a)))))))));
 }
 
 /* ── Shell: views, sidebar, status, theme ─────────────────────────────── */

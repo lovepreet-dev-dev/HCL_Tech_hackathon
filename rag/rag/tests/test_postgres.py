@@ -83,3 +83,45 @@ def test_users_and_long_audit_headers(engine) -> None:
         log_audit(db, user_id=user.id, action="login", user_agent="Mozilla/5.0 " + "x" * 2000, ip_address="203.0.113.7")
         entry = db.scalars(select(AuditLog)).one()
         assert len(entry.user_agent) == 500
+
+
+def _race(n: int, fn) -> list:  # noqa: ANN001
+    """Run ``fn`` in ``n`` threads released at the same moment; return results or exceptions."""
+    barrier, results = threading.Barrier(n), []
+
+    def go() -> None:
+        barrier.wait()
+        try:
+            results.append(fn())
+        except Exception as exc:  # noqa: BLE001
+            results.append(exc)
+
+    threads = [threading.Thread(target=go) for _ in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return results
+
+
+def test_simultaneous_decisions_on_one_draft_have_one_winner(engine) -> None:
+    from app.copilot.actions import DecisionNotAllowedError
+
+    database.init_db()
+    store = ActionStore(sessionmaker(bind=engine))
+    drafts = [{"type": "refund_approval_request", "id": "RFA-RACE0001", "priority": "P2", "status": "pending Store Manager approval"}]
+    store.save(drafts)
+    results = _race(8, lambda: store.decide(drafts[0]["action_id"], "approved", "Manager"))
+    assert sum(isinstance(r, dict) for r in results) == 1
+    assert all(isinstance(r, DecisionNotAllowedError) for r in results if not isinstance(r, dict))
+
+
+def test_simultaneous_evaluation_starts_create_one_run(engine) -> None:
+    from app.copilot.eval_runs import EvaluationRuns
+
+    database.init_db()
+    runs = EvaluationRuns(sessionmaker(bind=engine))
+    results = _race(8, lambda: runs.start(use_llm=False))
+    assert not [r for r in results if isinstance(r, Exception)]
+    assert sum(created for _, created in results) == 1
+    assert len({run["run_id"] for run, _ in results}) == 1

@@ -86,7 +86,10 @@ shell: sidebar with persona and store pickers, model status and theme; four view
   per-case results; runs the public test cases in the background with or without the LLM.
 - **Drafts (bonus B3):** every ticket, notification, vendor-claim draft, quality hold,
   refund approval request and security incident, stored in the `copilot_actions` table (SQLite
-  locally, PostgreSQL in production), filterable by type. Nothing is sent.
+  locally, PostgreSQL in production), filterable by type. Refund approvals, vendor claims and
+  quality holds show *Needs decision*: open one to approve or reject it (a reason is required
+  to reject). The decision records who decided, as which persona, when and why, and goes to the
+  audit log. Nothing is sent.
 
 Light and dark themes; Enter sends, Shift + Enter adds a line, `/` focuses the composer,
 Esc closes the panel; works from phone width up.
@@ -198,5 +201,6 @@ are not part of this demo.
 - **Policy conflicts** are detected when two categories with strong signals give different priorities; a conflict inside one policy text is not.
 - **Vendor-quality ranking** counts complaints per vendor via SKU → vendor without normalising by sales volume, so it says where to look, not who is at fault (the answer says this too).
 - **`employee_master.csv`** is loaded but not used; the next step is checking the requester's escalation level.
-- **Drafts only.** Nothing is sent; payloads go to the `copilot_actions` table.
+- **Drafts only.** Nothing is sent; payloads go to the `copilot_actions` table. With login off,
+  the approver's name is typed, not verified; with `ENABLE_AUTH=true` it is the signed-in user.
 - **LLM availability and latency** depend on the provider: free OpenRouter models are often rate-limited (template fallback), and a reasoning model takes about 25 s per answer.

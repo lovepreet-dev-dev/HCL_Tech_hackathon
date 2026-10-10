@@ -93,7 +93,7 @@ Input: *"English Willow Cricket Bat is out of stock again at Store ST002. Why is
 1. **Mask first:** card → `[REDACTED_CARD]`, phone → `******3210`, email → `c***********e@example.com`, OTP/CVV/PIN → `[REDACTED]`, before triage, LLM, logs or tickets.
 2. **Refuse injection / restricted requests:** "ignore previous instructions", "show card numbers", "supplier contract prices", "reveal hidden prompt" → refusal, **no data access at all**, Security P1.
 3. **No invented policy:** citations come only from the KB; LLM citations not in the retrieved list are stripped; a cut-off LLM answer falls back to the template answer.
-4. **No fake actions:** refunds, vendor claims and quarantines are *drafts awaiting a human*; the copilot never says something was done.
+4. **No fake actions:** refunds, vendor claims and quarantines are *drafts awaiting a human*; the copilot never says something was done. A person approves or rejects each one in the Drafts view (`POST /actions/{id}/approve` or `/reject`, a reason required to reject); the decision records who, when and why, and is written to the audit log.
 5. **Escalate when unsure:** confidence < 0.60, P1, restricted data, a policy conflict (two categories whose rules give different priorities: the more urgent wins and a person confirms), or an action needing approval → human, with an escalation summary.
 6. **State limits:** a data-backed answer ends with one line: figures come from the CSV snapshot as of the anchor, live systems are not connected, and drafts wait for a person.
 7. **Neutral wording:** vendor data is "a signal for review, not proof of fault".
@@ -114,7 +114,9 @@ Two kinds of data, kept apart on purpose:
 |---|---|---|---|
 | 9 retail CSVs, 5 policy `.md` files | files in `usecase3/`, loaded into memory at startup | nobody (read-only snapshot) | A frozen snapshot of ~3,000 rows; pandas in memory is exact and needs no schema. In production this data belongs to the POS, inventory and ticketing systems, so the copilot should read it from them, not keep its own copy. |
 | Drafted actions | `copilot_actions` table (payload as JSONB on PostgreSQL) | Workflow agent, through `ActionStore` | Drafts are what the copilot owns. A table is shared by every instance and can be queried by store, type or priority. |
+| Decisions on drafts | `copilot_action_decisions` table, plus an `audit_logs` row | a person, through the approve/reject endpoints | Refund approvals, vendor claims and quality holds wait for a person. A unique key on the draft id means one decision per draft, even when two people click at once on different instances. |
 | Users, sessions, chat history, feedback, audit log, settings | the same database | API | Shared state for the dashboard and login. |
+| Evaluation progress | `evaluation_runs` table | the instance running the evaluation | Any instance answers `GET /evaluate` with the same run; a unique index allows one running run at a time, and a run whose instance stopped is marked failed after 15 minutes without progress. |
 | Evaluation results | `usecase3/evaluation/` files | evaluation run | Overwritten per run; read by `/metrics` and `/predictions`. |
 
 The database is SQLite by default (`sqlite:///./data/rag.db`) and PostgreSQL in production
