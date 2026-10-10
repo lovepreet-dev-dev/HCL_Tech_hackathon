@@ -1,7 +1,7 @@
 # RAG Engine
 
 > **HCLTech Hackathon, Use Case 3: the Retail Operations Copilot is built on this engine.**
-> Run `python -m uvicorn app.main:app --port 8000` and open http://localhost:8000/.
+> Run `./start.sh` (Windows: `start.bat`) and open http://localhost:8000/. Add `OPENROUTER_API_KEY` to `.env` for GLM-written answers.
 > Guide, results and limitations: [docs/USE_CASE_3_COPILOT.md](docs/USE_CASE_3_COPILOT.md) ·
 > design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · predictions: `usecase3/evaluation/predictions.csv`.
 

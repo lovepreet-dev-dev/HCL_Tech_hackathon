@@ -9,14 +9,31 @@ under [What we reused](#what-we-reused-from-the-rag-engine).
 
 ## Run it
 
-```bash
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env            # set LLM_PROVIDER and its key (openrouter, openai, anthropic or ollama)
+One command, from this folder (`rag/rag`). The script creates the virtual environment,
+installs dependencies (5–10 minutes the first time, skipped after that), creates `.env`
+from `.env.example` and starts the server:
 
+```bash
+./start.sh          # macOS / Linux
+start.bat           # Windows: double-click it, or run it in a terminal
+```
+
+Then open http://localhost:8000/ for the console (Copilot, Dashboard, Evaluation, Drafts)
+and http://localhost:8000/docs for the API. Ctrl + C stops it. Another port: `PORT=8001 ./start.sh`
+(Windows: `set PORT=8001` first).
+
+**LLM:** put your OpenRouter key in `.env` as `OPENROUTER_API_KEY=...` and restart. That is
+all: the template already selects GLM 5.3 Flash on OpenRouter. Without a key the copilot
+still works and writes template answers; every scored decision is the same either way. The
+sidebar shows which: a green dot with the model, or "Template mode".
+
+By hand, if you prefer:
+
+```bash
+python -m venv venv && source venv/bin/activate     # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env                                # Windows: copy .env.example .env
 python -m uvicorn app.main:app --port 8000
-# open http://localhost:8000/        → the console (Copilot, Dashboard, Evaluation, Drafts)
-#      http://localhost:8000/docs    → the API
 ```
 
 Use `python -m uvicorn` rather than the `uvicorn` script: if the venv was copied from
@@ -29,8 +46,15 @@ python scripts/run_uc3_eval.py --cases path/to/hidden_cases.csv   # same columns
 pytest tests/test_copilot -q
 ```
 
-Docker: set `POSTGRES_PASSWORD` in `.env`, run `docker compose up --build`, then the console is at
-`http://localhost:8000/`. Compose runs PostgreSQL for users, chat history and drafted actions.
+Docker: set `POSTGRES_PASSWORD` in `.env` (letters and digits), run
+`docker compose up --build rag-api`, then the console is at `http://localhost:8000/`. Compose
+starts PostgreSQL first, for users, chat history, drafted actions and their approvals; plain
+`docker compose up --build` also builds the separate Next.js frontend and nginx.
+
+Where data lives: the 9 retail CSVs and the 5 policy files are read-only input, loaded into
+memory at startup. Everything the app writes (drafts, approvals, evaluation runs, users,
+chat history) goes to the database: a SQLite file (`data/rag.db`) when run with the
+script, PostgreSQL under Docker or in production.
 
 ### Settings (env vars or `.env`)
 
