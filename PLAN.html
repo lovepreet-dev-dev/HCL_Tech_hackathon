@@ -1,0 +1,268 @@
+<title>Hackathon Team Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column, wide tables scroll in place; members A/B/C carry a fixed colour everywhere */
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --fg:#1b2330; --muted:#5a6676; --rule:#dde2e9; --accent:#1f4fa3;
+  --a:#b4471f; --a-bg:#fbeee8; --b:#1d7a5c; --b-bg:#e6f4ee; --c:#6a3fb0; --c-bg:#f0eafa;
+  --warn:#8a5a00; --warn-bg:#fff4dc;
+  --display:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --body:"Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161d; --surface:#1a2029; --fg:#e4e8ee; --muted:#9aa5b4; --rule:#2c3440; --accent:#7ea6ec;
+  --a:#f0916b; --a-bg:#3a2219; --b:#5fcaa3; --b-bg:#16302a; --c:#b99af0; --c-bg:#2a2140;
+  --warn:#f0c46a; --warn-bg:#3a2e12; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#12161d; --surface:#1a2029; --fg:#e4e8ee; --muted:#9aa5b4; --rule:#2c3440; --accent:#7ea6ec;
+  --a:#f0916b; --a-bg:#3a2219; --b:#5fcaa3; --b-bg:#16302a; --c:#b99af0; --c-bg:#2a2140;
+  --warn:#f0c46a; --warn-bg:#3a2e12; color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--body);padding-inline:16px;padding-block:32px 64px}
+.wrap{max-width:960px;margin:0 auto;display:grid;gap:40px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:2.1rem}
+h2{font-size:1.55rem;padding-top:8px;border-top:2px solid var(--fg)}
+h3{font-size:1.15rem}
+p{margin:0;max-width:68ch}
+.lede{color:var(--muted);font-size:1.02rem}
+section{display:grid;gap:18px}
+.eyebrow{font:500 .72rem/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+code,.mono{font-family:var(--mono);font-size:.86em}
+nav{display:flex;flex-wrap:wrap;gap:8px}
+nav a{color:var(--accent);text-decoration:none;border:1px solid var(--rule);border-radius:999px;padding:4px 12px;font-size:.88rem;background:var(--surface)}
+nav a:hover,nav a:focus-visible{border-color:var(--accent);outline:none}
+.callout{background:var(--warn-bg);color:var(--fg);border-left:4px solid var(--warn);padding:14px 16px;border-radius:4px;display:grid;gap:6px}
+.callout strong{color:var(--warn)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:16px;display:grid;gap:8px;align-content:start;min-width:0}
+.card ul{margin:0;padding-left:18px;display:grid;gap:4px}
+.tag{display:inline-flex;align-items:center;gap:6px;font:600 .8rem/1 var(--mono);padding:5px 9px;border-radius:4px;width:max-content}
+.tA{color:var(--a);background:var(--a-bg)} .tB{color:var(--b);background:var(--b-bg)} .tC{color:var(--c);background:var(--c-bg)}
+.cA{border-top:3px solid var(--a)} .cB{border-top:3px solid var(--b)} .cC{border-top:3px solid var(--c)}
+.scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:.9rem}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--rule)}
+th{font:600 .74rem/1.2 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.time{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td.all{background:var(--bg);font-weight:500}
+.flow{font-family:var(--mono);font-size:.84rem;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:14px 16px;overflow-x:auto;white-space:pre;line-height:1.7}
+ol.steps,ul.plain{margin:0;padding-left:20px;display:grid;gap:6px;max-width:72ch}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header style="display:grid;gap:12px">
+  <span class="eyebrow">HCLTech Future Ready AI Engineer Hackathon · NIT Jalandhar · 3-person team</span>
+  <h1>Team plan for the three use cases</h1>
+  <p class="lede">Use Case 1 (Retail Support Agent) and Use Case 2 (University Student Services) share the same contract, stack and scoring. Only the domain changes, so one plan covers both. Use Case 3 (Retail Operations Copilot) is a different, shorter format. Pick the section that matches the use case you get.</p>
+  <nav>
+    <a href="#pick">Which one to pick</a>
+    <a href="#uc3">Use Case 3 plan</a>
+    <a href="#uc12">Use Case 1 / 2 plan</a>
+    <a href="#rules">Team rules</a>
+    <a href="#now">Do this now</a>
+  </nav>
+</header>
+
+<section id="pick">
+  <h2>Which one to pick</h2>
+  <div class="callout">
+    <strong>Today, 10 October 2026, is the suggested event date in the Use Case 3 guide.</strong>
+    <p>If you get to choose, pick Use Case 3. The data, knowledge base and test cases are already supplied, any tech stack is allowed, and the build window is 5–6 hours. Use Cases 1 and 2 need a full day, a fixed stack (Ollama, LangGraph, ChromaDB, Docker), your own documents and LLM-generated synthetic data.</p>
+  </div>
+  <div class="scroll"><table>
+    <thead><tr><th></th><th>UC1 Retail Support Agent</th><th>UC2 Student Services</th><th>UC3 Retail Ops Copilot</th></tr></thead>
+    <tbody>
+      <tr><td><b>Build window</b></td><td>One full day</td><td>One full day</td><td>5–6 hours</td></tr>
+      <tr><td><b>Stack</b></td><td colspan="2">Fixed: FastAPI, LangGraph, ChromaDB, SQLite, sentence-transformers, Ollama, Docker, Streamlit</td><td>Open (any language, model or framework)</td></tr>
+      <tr><td><b>Data</b></td><td>Bring 3+ retailer policy docs; generate 30 customers, 20 products, 60 orders</td><td>Bring 3+ university docs; generate 30 students, 6 courses</td><td>Supplied: 5 KB docs, 9 CSVs, 11 public test cases</td></tr>
+      <tr><td><b>Hard parts</b></td><td colspan="2">Precedence policy (Annex A), live <code>/ingest</code> that changes a rule, deterministic tools reading a rule registry, audit trail</td><td>Must have 2+ cooperating agents; 100% safety pass; priority accuracy</td></tr>
+      <tr><td><b>Judging</b></td><td colspan="2">10 min demo, 10 min live judge tests, 10 min individual Q&amp;A (100 points)</td><td>Demo + metrics table on public tests + hidden prompts</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="uc3">
+  <span class="eyebrow">Use Case 3 · 5–6 hours · open stack</span>
+  <h2>Retail Operations Copilot plan</h2>
+  <p>The copilot takes a free-text store issue and returns category, priority, confidence, a cited answer, the data it used, an escalation decision and PII status. The guide requires at least two cooperating agents (M10), so the agents below are each a real, separable step. Keep the deterministic parts (masking, priority overrides, escalation routing, CSV analytics) in code and use the LLM for classification, phrasing and the final answer.</p>
+
+  <h3>Pipeline</h3>
+<div class="flow">issue text
+  → Safety agent      regex PII/card masking, injection and restricted-data detection   (code first, LLM second)
+  → Triage agent      category + priority + confidence, then rule overrides from SOP priority table
+  → Retrieval agent   BM25 or embeddings over KB split by "##" heading → cites file.md#section-slug
+  → Data agent        pandas tools: stock-out root cause, unresolved incidents (anchor 2026-10-10 12:00 IST),
+                      vendor quality, return threshold, short shipments
+  → Workflow agent    escalation_matrix.csv lookup → team, SLA, approval; mock ticket JSON written to file
+  → Composer          one LLM call: answer from retrieved sections + data findings only → response JSON</div>
+
+  <h3>Who builds what</h3>
+  <div class="cards">
+    <div class="card cA">
+      <span class="tag tA">Member A · Safety, triage, eval</span>
+      <ul>
+        <li>Shared response schema (Pydantic) matching <code>predictions_schema.csv</code>, done in the first 30 minutes</li>
+        <li>Safety agent: phone, card and email masking; injection and restricted-data refusals (PUB-008, PUB-009)</li>
+        <li>Triage agent: LLM classifier with few-shot examples from <code>support_cases.csv</code> plus rule overrides (store-wide outage, safety or injury words → P1)</li>
+        <li>Orchestrator wiring the agents together</li>
+        <li>Eval runner: writes <code>predictions.csv</code> and the metrics table for the 5 target metrics</li>
+      </ul>
+    </div>
+    <div class="card cB">
+      <span class="tag tB">Member B · Retrieval, workflow, answers</span>
+      <ul>
+        <li>Chunk the 5 KB files by heading; slug anchors exactly like the test file (<code>#pos-card-reader-runbook</code>)</li>
+        <li>Retrieval agent with top-k sections and a score threshold; nothing found means a "not in policy" answer</li>
+        <li>Workflow agent: escalation matrix routing, approval rules (refund thresholds), mock ticket, notification and vendor claim payloads (bonus B3)</li>
+        <li>Composer prompt: answer only from supplied sections, ask a follow-up question when store or SKU is missing</li>
+      </ul>
+    </div>
+    <div class="card cC">
+      <span class="tag tC">Member C · Data agent, UI, dashboard</span>
+      <ul>
+        <li>Data agent tools as plain functions over the CSVs: stock-out analysis (inventory + receipts + vendor fill rate + warehouse WH001), incidents in the last 24 hours, vendor complaints in the last 30 days, return lookup</li>
+        <li>Root-cause explanation (bonus B1), e.g. tennis balls: store and warehouse both at zero</li>
+        <li>Streamlit app: Triage tab, Analytics tab, Eval tab showing the metrics table</li>
+        <li>Dashboard (bonus B2): open cases, priority mix, category mix, region trends</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Timeline</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Time</th><th><span class="tag tA">A</span></th><th><span class="tag tB">B</span></th><th><span class="tag tC">C</span></th></tr></thead>
+    <tbody>
+      <tr><td class="time">0:00–0:30</td><td class="all" colspan="3">Everyone: repo skeleton, LLM key or Ollama check, agree the response schema and function signatures. Stub every agent so the pipeline runs end to end with fake output.</td></tr>
+      <tr><td class="time">0:30–2:30</td><td>Safety agent + triage agent + orchestrator</td><td>KB chunking + retrieval + composer prompt</td><td>Data agent tools for scenarios 3, 6, 7, 10, 11</td></tr>
+      <tr><td class="time">2:30–3:30</td><td class="all" colspan="3">Integrate: replace stubs, run all 8 seeded scenarios by hand, fix the breaks.</td></tr>
+      <tr><td class="time">3:30–4:30</td><td>Eval runner, metrics table, tune triage on failures</td><td>Workflow agent + mock tickets; typo and paraphrase tests</td><td>Streamlit UI wired to the pipeline</td></tr>
+      <tr><td class="time">4:30–5:15</td><td>Low-confidence escalation, limitations note</td><td>README + architecture diagram</td><td>Dashboard (bonus)</td></tr>
+      <tr><td class="time">5:15–6:00</td><td class="all" colspan="3">Freeze features. Final eval run, demo rehearsal (normal triage, data-backed root cause, injection refusal), each person explains another person's part.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Targets and traps</h3>
+  <div class="two">
+    <div class="card">
+      <span class="eyebrow">Targets from the guide</span>
+      <ul class="plain">
+        <li>Category and priority accuracy ≥ 75%</li>
+        <li>Citation presence on policy answers ≥ 85%</li>
+        <li>Safety pass rate 100% on public safety cases</li>
+        <li>Data-use correctness ≥ 75%</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="eyebrow">Avoid</span>
+      <ul class="plain">
+        <li>Hard-coding answers for the 11 public prompts. Judges use hidden prompts; build general tools.</li>
+        <li>Letting the LLM do counts or date maths. Pandas computes, the LLM explains.</li>
+        <li>Echoing a card number back in the answer, the ticket or the logs.</li>
+        <li>Agents that are only prompt names. Each agent must own a distinct job you can explain.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="uc12">
+  <span class="eyebrow">Use Case 1 or 2 · one full day · fixed stack</span>
+  <h2>Support agent plan (retail or university)</h2>
+  <p>The guide scores the simplest design that meets the requirements highest. Build one fixed LangGraph workflow, not a multi-agent system, and be ready to explain why: eligibility, refunds and attendance are deterministic, so they are tools, not agents.</p>
+
+  <h3>Pipeline</h3>
+<div class="flow">POST /ask  (identity only from X-Customer-Id / X-Student-Id header)
+  → classify        policy | procedure | personal | calc | what-if | out-of-scope   (LLM, JSON-validated, retry, fallback)
+  → authorise       personal question with no header or someone else's ID → refused (never confirm the record exists)
+  → retrieve        ChromaDB top-k with metadata filter: effective on as_of_date, scope matches
+  → resolve         Annex A precedence: applicability → supersession → authority → recency → conflict_flagged
+  → tools           SQLite lookups + eligibility / refund / warranty / attendance, thresholds read from rule_registry
+  → compose         LLM writes answer from evidence + tool output only; answer_type set by code, not by the LLM
+  → audit           trace_id, sources, tools with inputs/outputs, rules, conflicts, model, tokens, latency</div>
+
+  <h3>Who builds what</h3>
+  <div class="cards">
+    <div class="card cA">
+      <span class="tag tA">Member A · Data, rules, precedence</span>
+      <ul>
+        <li>Find the documents: at least one versioned conflict, a category or tier rule, a table, a not-yet-effective circular</li>
+        <li><code>source_register.csv</code> (Annex B)</li>
+        <li>SQLite schema exactly as Annex C, plus the rule registry with every rule linked to a clause</li>
+        <li>Synthetic data kit: verbatim prompts, generator, validator with output, loader script for judges, data card. Cover every listed edge case</li>
+        <li>Precedence resolver as a pure, unit-tested function</li>
+      </ul>
+    </div>
+    <div class="card cB">
+      <span class="tag tB">Member B · Retrieval, ingestion, eval</span>
+      <ul>
+        <li>Parse and chunk with section, page, version and date metadata; ChromaDB persisted to disk</li>
+        <li><code>POST /ingest</code>: file + metadata, optional new rules into the registry, usable immediately</li>
+        <li><code>GET /sources</code>, citations, <code>not_found</code> abstention threshold</li>
+        <li>Eval set of 20+ questions in the required mix and the harness for all 6 metrics</li>
+        <li>Compare two configurations (chunk size or top-k or embedding model) and record the numbers</li>
+      </ul>
+    </div>
+    <div class="card cC">
+      <span class="tag tC">Member C · Orchestration, tools, API</span>
+      <ul>
+        <li>FastAPI contract: <code>/ask</code>, <code>/health</code>, <code>/audit/{trace_id}</code>, Pydantic v2 models</li>
+        <li>LangGraph workflow above, <code>MOCK_LLM=true</code> mode from hour one</li>
+        <li>Deterministic tools; state-changing tools re-check eligibility and are idempotent</li>
+        <li>Authorisation, injection handling for documents and order notes, PII-free logs</li>
+        <li>Streamlit UI, Docker Compose (Ollama on host)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Timeline</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Time</th><th><span class="tag tA">A</span></th><th><span class="tag tB">B</span></th><th><span class="tag tC">C</span></th></tr></thead>
+    <tbody>
+      <tr><td class="time">0:00–0:45</td><td class="all" colspan="3">Everyone: repo layout, Pydantic response model, SQLite schema, tool signatures, source register columns. Agree before anyone codes.</td></tr>
+      <tr><td class="time">0:45–3:00</td><td>Documents + register + schema + rule registry; start data generation</td><td>Parsing, chunking, ChromaDB, retrieval with metadata filters</td><td>FastAPI skeleton, LangGraph with mock LLM, first tool</td></tr>
+      <tr><td class="time">3:00–3:30</td><td class="all" colspan="3">First end-to-end path: one document, one question, one cited answer. Commit and tag.</td></tr>
+      <tr><td class="time">3:30–5:30</td><td>Validator, loader, edge cases, precedence resolver + tests</td><td><code>/ingest</code> with rules, <code>/sources</code>, abstention, eval set</td><td>All tools, authorisation, what-if handling, audit records</td></tr>
+      <tr><td class="time">5:30–6:30</td><td>Data card, prompts file</td><td>Eval harness + two-config comparison</td><td>Docker Compose, Streamlit, <code>/health</code></td></tr>
+      <tr><td class="time">6:30–7:30</td><td class="all" colspan="3">Judge drill: ingest an unseen circular that changes a rule, load fresh test customers or students, ask unseen questions. Fix what breaks.</td></tr>
+      <tr><td class="time">7:30–8:00</td><td class="all" colspan="3">README, sample audit records (3 answer types), AI-usage disclosure, contribution statement. Code freeze and <code>git tag final</code>.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Points that decide the score</h3>
+  <ul class="plain">
+    <li><b>Live ingestion (15 pts).</b> A new circular must change what the refund or eligibility tool returns, with no restart. Tools read thresholds from <code>rule_registry</code> through the same precedence resolver.</li>
+    <li><b>Citations (20 pts).</b> Judges open the cited page. Store the real page and section number with every chunk.</li>
+    <li><b>Safety (10 pts).</b> Another person's ID in the message text is ignored; the response must not reveal whether that order or student exists.</li>
+    <li><b>Disqualifiers.</b> Hard-coded answers, no tools, no evaluation, real personal data, shared code.</li>
+  </ul>
+</section>
+
+<section id="rules">
+  <h2>Team rules for either use case</h2>
+  <ol class="steps">
+    <li>Agree the shared schema and function signatures before writing code, then build against stubs so nobody waits on anyone.</li>
+    <li>Everyone commits under their own Git identity, at least hourly. Judges read the history.</li>
+    <li>Each member writes evaluation cases for their own component.</li>
+    <li>Hiring is individual and judges question each person about parts they did not build. In the last hour, each member explains another member's component out loud.</li>
+    <li>Keep an <code>AI_USAGE.md</code> as you go: which parts an assistant generated and how you verified them.</li>
+  </ol>
+</section>
+
+<section id="now">
+  <h2>Do this now</h2>
+  <ul class="plain">
+    <li>Decide which use case you are building and who is A, B and C.</li>
+    <li>UC1/UC2: <code>ollama pull qwen2.5:7b-instruct</code> (or <code>llama3.1:8b</code>) and test JSON output; install Docker.</li>
+    <li>UC3: confirm which LLM you can use (API key or local Ollama) and test one call.</li>
+    <li>Create a Python 3.11 venv, push the empty repo skeleton, and add the other two as collaborators.</li>
+  </ul>
+</section>
+
+</div>
