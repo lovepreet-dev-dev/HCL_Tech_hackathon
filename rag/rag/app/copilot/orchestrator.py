@@ -25,9 +25,11 @@ from app.config.settings import LLMProvider, Settings, get_settings
 from app.copilot.actions import get_action_store
 from app.copilot.composer import Composer
 from app.copilot.data_agent import DataAgent, DataResult, RetailData
+from app.copilot.normalize import Normalizer
 from app.copilot.retrieval import KnowledgeBase, RetrievalAgent
-from app.copilot.safety import SafetyAgent
+from app.copilot.safety import LLMGuard, SafetyAgent
 from app.copilot.schemas import AgentStep, CopilotResponse
+from app.copilot.semantic import SemanticMatcher
 from app.copilot.triage import TriageAgent
 from app.copilot.workflow import WorkflowAgent
 from app.utils.logging import get_logger
@@ -76,8 +78,21 @@ class Copilot:
                     self.llm_error = str(exc)
                     logger.warning("copilot_llm_unavailable", error=self.llm_error)
 
-        self.safety = SafetyAgent()
-        self.triage = TriageAgent(self.data, llm=llm if self.settings.copilot_llm_triage else None)
+        # Wider detection: typo/Hinglish normaliser, meaning-based matching, optional LLM guard.
+        normalizer, semantic = None, None
+        if self.settings.copilot_semantic_triage:
+            normalizer = Normalizer(word for name in self.data.products.name for word in name.split())
+            if self.kb.embeddings is not None:
+                try:
+                    cases = self.data.cases.drop_duplicates("issue_text")
+                    semantic = SemanticMatcher(self.kb.embeddings, list(zip(cases.issue_text, cases.category_label, strict=True)))
+                except Exception as exc:  # keep working on keyword rules
+                    logger.warning("copilot_semantic_unavailable", error=str(exc)[:200])
+        guard = LLMGuard(llm) if llm is not None and self.settings.copilot_llm_guard else None
+        self.semantic_enabled = semantic is not None
+
+        self.safety = SafetyAgent(normalizer=normalizer, semantic=semantic, guard=guard)
+        self.triage = TriageAgent(self.data, llm=llm if self.settings.copilot_llm_triage else None, semantic=semantic)
         self.data_agent = DataAgent(self.data)
         self.workflow = WorkflowAgent(
             self.data,
@@ -118,9 +133,10 @@ class Copilot:
             lambda s: s.reason,
             lambda s: {"injection": s.injection, "restricted": s.restricted_items, "pii": s.pii_found,
                        "payment_data_request": s.payment_data_request, "masked_text": s.masked_text,
-                       "refusal": s.refusal},
+                       "refusal": s.refusal, "normalized_text": s.normalized_text or None,
+                       "matched_by_meaning": [h.__dict__ for h in s.semantic_hits], "flagged_by": s.flagged_by},
         )
-        entities = self.data.extract_entities(safety.masked_text, store_hint=store_id)
+        entities = self.data.extract_entities(safety.rules_text, store_hint=store_id)
 
         triage = step(
             self.triage.name, lambda: self.triage.run(safety, entities),
@@ -135,7 +151,7 @@ class Copilot:
         else:
             data = step(
                 self.data_agent.name,
-                lambda: self.data_agent.run(safety.masked_text, triage.category, entities, triage.analytics),
+                lambda: self.data_agent.run(safety.rules_text, triage.category, entities, triage.analytics),
                 lambda d: f"tools {', '.join(d.tools) or 'none'}; files {', '.join(d.data_used) or 'none'}",
                 lambda d: {"findings": d.findings, "facts": d.facts, "likely_cause": d.likely_cause},
             )
@@ -159,7 +175,7 @@ class Copilot:
         policy_question = triage.priority == "P4" and not triage.analytics
         sections, search = step(
             self.retrieval.name,
-            lambda: self.retrieval.run(safety.masked_text, triage.category, wanted, policy_question),
+            lambda: self.retrieval.run(safety.rules_text, triage.category, wanted, policy_question),
             lambda out: f"{len(out[0])} section(s) cited; top search hit {out[1][0].citation if out[1] else 'none'}",
             lambda out: {"cited": [x.citation for x in out[0]],
                          "search": [{"citation": x.citation, "score": x.score} for x in out[1]]},

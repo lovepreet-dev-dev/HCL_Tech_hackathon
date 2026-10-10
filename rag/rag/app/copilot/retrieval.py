@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from langchain_core.documents import Document
 
@@ -70,6 +71,11 @@ class KnowledgeBase:
     @property
     def dense_enabled(self) -> bool:
         return self._vectors is not None
+
+    @property
+    def embeddings(self) -> Any:
+        """The loaded embedding model, or None when dense search is off."""
+        return self._embeddings if self.dense_enabled else None
 
     def get(self, citation: str) -> Document | None:
         return self._by_citation.get(citation)

@@ -442,7 +442,17 @@ class Settings(BaseSettings):
     copilot_llm_triage: bool = Field(
         default=False,
         description="Also ask the LLM for a triage second opinion (one extra call per question). "
-        "Off by default: rules decide triage, the LLM writes the answer.",
+        "Off by default: rules decide triage, the LLM writes the answer. It can raise a priority, never lower one.",
+    )
+    copilot_llm_guard: bool = Field(
+        default=False,
+        description="Also ask the LLM whether the (masked) message is a prompt injection or asks for restricted "
+        "data (one extra call per question). It can add a refusal, never remove one.",
+    )
+    copilot_semantic_triage: bool = Field(
+        default=True,
+        description="Fix typos and Hinglish before the rules read a message, and match it by meaning against the "
+        "historic tickets and examples of each P1 trigger and restricted request (needs COPILOT_USE_EMBEDDINGS).",
     )
     copilot_use_embeddings: bool = Field(
         default=True,

@@ -267,6 +267,8 @@ def test_get_copilot_builds_once_under_concurrent_calls(monkeypatch: pytest.Monk
             built.append(1)
             time.sleep(0.05)
 
+    with orch._instance_lock:  # let a warm-up build started by an earlier test finish first
+        pass
     monkeypatch.setattr(orch, "Copilot", Slow)
     monkeypatch.setattr(orch, "_instance", None)
     threads = [threading.Thread(target=orch.get_copilot) for _ in range(8)]

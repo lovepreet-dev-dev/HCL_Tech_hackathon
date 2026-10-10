@@ -6,7 +6,11 @@ Three signals, combined in code:
 2. A nearest-neighbour vote over the 550 labelled ``support_cases.csv`` tickets
    (BM25 from the RAG engine), which handles wording the rules do not list.
 3. Optionally the LLM, prompted with the SOP priority rules and the most similar
-   historic tickets as few-shot examples.
+   historic tickets as few-shot examples. It may raise a priority, never lower one.
+
+When the embedding model is available, the ticket vote also matches by meaning,
+and messages close to an example of a P1 trigger (``semantic.py``) get that P1.
+Rules read the normalised text (typos fixed, Hinglish translated).
 
 Hard rules (store-wide outage, injury/recall, payment-data requests, injection)
 always win over the model, and the data agent can raise priority later with
@@ -46,7 +50,8 @@ CATEGORY_TERMS: dict[str, list[tuple[str, float]]] = {
         (r"\bstock\b|inventory|availability|transfer", 1.5), (r"root cause", 1),
     ],
     "Pricing and Promotions": [
-        (r"shelf (label|price)|price tag|label", 3), (r"\bprices?\b|pricing|mrp|scans?\b|scanning", 2),
+        (r"shelf (label|price)|price tag|label|\btags?\b|rack price", 3), (r"\bprices?\b|pricing|mrp|scans?\b|scanning", 2),
+        (r"\b(bill|till|pos|register|counter) (shows|says|charg|rings)", 2),
         (r"promotions?|promo|discount|coupon|offer", 2.5),
     ],
     "Returns and Refunds": [
@@ -64,7 +69,7 @@ CATEGORY_TERMS: dict[str, list[tuple[str, float]]] = {
         (r"complaints?", 1),
     ],
     "Customer Service": [
-        (r"upset|angry|rude|complain(ed|ing)? about|wait time|long queue|queue", 2.5),
+        (r"upset|angry|rude|shout|yell|abusive|misbehav|complain(ed|ing)? about|wait time|long queue|queue", 2.5),
         (r"goodwill|apolog|service recovery|compensation|feedback|escalated by customer", 2.5),
     ],
     "Other or Security": [
@@ -117,6 +122,10 @@ _MANY = re.compile(
     re.IGNORECASE,
 )
 _STOCK_OUT = re.compile(r"out of stock|stock-?out|out of stok|sold out|unavailable|not available|zero stock|no stock|shelf (count )?is zero", re.I)
+# "only 30 of 100 arrived", "delivered 40 out of 120": read only for vendor messages that mention a delivery.
+_RECEIVED_OF = re.compile(r"\b(\d+)\s*(?:of|out of|/)\s*(\d+)\b")
+_DELIVERY_WORD = re.compile(r"\b(arrived|delivered|received|came|sent|ordered|shipped|delivery|shipment)\b", re.I)
+_HALF = re.compile(r"\b(only )?half (the|of the|our)?\b[^.]{0,40}\b(ordered|order|shipment|delivery|po)\b", re.I)
 _SHORT = re.compile(r"received only (\d+) of (\d+)|arrived (\d+) ?(%|percent)|short by (\d+)|short shipment|partial (delivery|receipt)", re.I)
 
 SEVERITY = {"P1": 1, "P2": 2, "P3": 3, "P4": 4}
@@ -142,9 +151,10 @@ class TriageResult:
 class TriageAgent:
     name = "Triage agent"
 
-    def __init__(self, data: RetailData, llm: Any = None) -> None:
+    def __init__(self, data: RetailData, llm: Any = None, semantic: Any = None) -> None:
         self.data = data
         self.llm = llm
+        self.semantic = semantic
         self._cases = [
             Document(page_content=row.issue_text, metadata={"category": row.category_label, "priority": row.priority_label})
             for row in data.cases.drop_duplicates("issue_text").itertuples()
@@ -166,20 +176,32 @@ class TriageAgent:
         return self._bm25.search(text, k=k)
 
     def _knn(self, text: str) -> dict[str, float]:
+        """Category votes of the most similar historic tickets: by words (BM25) and,
+        when embeddings are available, by meaning; the two are averaged."""
         hits = self.similar_cases(text)
         votes = {c: 0.0 for c in CATEGORIES}
-        if not hits:
+        if hits:
+            top = hits[0][1] or 1.0
+            for doc, score in hits:
+                votes[doc.metadata["category"]] += score / top
+            total = sum(votes.values()) or 1.0
+            votes = {c: v / total for c, v in votes.items()}
+        dense: dict[str, float] = {}
+        if self.semantic is not None:
+            try:
+                dense = self.semantic.ticket_votes(text)
+            except Exception as exc:  # embedding failure: words only
+                logger.warning("copilot_semantic_votes_failed", error=str(exc)[:200])
+        if not dense:
             return votes
-        top = hits[0][1] or 1.0
-        for doc, score in hits:
-            votes[doc.metadata["category"]] += score / top
-        total = sum(votes.values()) or 1.0
-        return {c: v / total for c, v in votes.items()}
+        if not hits:
+            return {c: dense.get(c, 0.0) for c in CATEGORIES}
+        return {c: (votes[c] + dense.get(c, 0.0)) / 2 for c in CATEGORIES}
 
     # ── Main ───────────────────────────────────────────────────────────
 
     def run(self, safety: SafetyResult, entities: Entities) -> TriageResult:
-        text = safety.masked_text
+        text = safety.rules_text
         analytics = bool(_ANALYTICS.search(text.strip()))
 
         if safety.refusal:
@@ -193,7 +215,12 @@ class TriageAgent:
             )
 
         lex, knn = self._lexicon(text), self._knn(text)
-        if not any(lex.values()) and max(knn.values()) < 0.5:
+        # A P1 trigger is never skipped for lack of category keywords.
+        p1_signal = bool(
+            safety.payment_data_request or _SAFETY.search(text) or _STORE_WIDE.search(text) or _LEGAL.search(text)
+            or any(h.group in ("equipment_injury", "store_wide_payment_outage") for h in safety.semantic_hits)
+        )
+        if not any(lex.values()) and max(knn.values()) < 0.5 and not p1_signal:
             # Nothing recognisable: do not guess. Low confidence triggers a follow-up and human review.
             return TriageResult(
                 category="Other or Security", priority="P4", confidence=0.35,
@@ -317,6 +344,21 @@ class TriageAgent:
             self._set(r, "P1", "legal or compliance risk", hard=True)
             reasons.append("Legal/compliance risk is P1 under the SOP.")
             return
+        # The same P1 triggers, matched by meaning when the wording differs.
+        for hit in safety.semantic_hits:
+            if hit.group == "equipment_injury":
+                r.category = "Product Quality and Safety"
+                self._set(r, "P1", "injury or unsafe equipment (matched by meaning)", "04_vendor_quality_policy.md#recall-and-safety", hard=True)
+                reasons.append(f"Close to the P1 example \"{hit.example}\" (similarity {hit.similarity:.2f}): "
+                               "an injury or unsafe-equipment report is P1 Product Quality and Safety.")
+                return
+            if hit.group == "store_wide_payment_outage" and r.category in ("POS and Payments", "Other or Security", "Customer Service"):
+                r.category = "POS and Payments"
+                self._set(r, "P1", "store-wide payment outage (matched by meaning)", hard=True)
+                r.citations.append(f"{pos}#pos-card-reader-runbook")
+                reasons.append(f"Close to the P1 example \"{hit.example}\" (similarity {hit.similarity:.2f}): "
+                               "a store-wide payment outage is P1.")
+                return
 
         # ── P2 / P3 by category ──
         cat = r.category
@@ -357,6 +399,10 @@ class TriageAgent:
                 ratio = int(m.group(1)) / max(int(m.group(2)), 1)
             elif m and m.group(3):
                 ratio = int(m.group(3)) / 100
+            elif (got := _RECEIVED_OF.search(text)) and _DELIVERY_WORD.search(text):
+                ratio = int(got.group(1)) / max(int(got.group(2)), 1)
+            elif _HALF.search(text):
+                ratio = 0.5
             if (ratio is not None and ratio < 0.9) or many or re.search(r"damaged cartons?|damaged on receipt", low):
                 self._set(r, "P2", "short shipment below 90% or repeated vendor issue", "04_vendor_quality_policy.md#short-shipments")
                 reasons.append("Short shipment below 90% of PO (or repeated) affects replenishment: P2.")
@@ -434,16 +480,25 @@ class TriageAgent:
             # Hard rules are policy; the model only adjusts confidence.
             r.confidence = round(min(0.97, (r.confidence + conf) / 2 + (0.05 if cat == r.category else 0)), 2)
             return
+        # The model may make a case more urgent, never less: its mistakes cost a human
+        # review, not a missed P1.
+        more_urgent = SEVERITY[pri] < SEVERITY[r.priority]
+        why = parsed.get("reasoning", "")
         if cat == r.category:
             r.confidence = round(min(0.97, max(r.confidence, conf) + 0.05), 2)
-            if pri != r.priority and r.signals.get("priority_rule", "").startswith(("single", "routine", "standard")):
+            if more_urgent:
                 r.priority = pri
-                r.reasons.append(f"LLM judged priority {pri}: {parsed.get('reasoning', '')}")
+                r.reasons.append(f"LLM judged it more urgent, {pri}: {why}")
         elif r.confidence < 0.55 and conf >= 0.7:
-            # Rules were unsure and the model is confident: take the model's call.
-            r.reasons.append(f"Rules were unsure; LLM classified it as {cat}, {pri}: {parsed.get('reasoning', '')}")
-            r.category, r.priority = cat, pri
+            # Rules were unsure and the model is confident: take its category; priority only goes up.
+            r.reasons.append(f"Rules were unsure; LLM classified it as {cat}, {pri}: {why}")
+            r.category = cat
+            if more_urgent:
+                r.priority = pri
             r.confidence = round((r.confidence + conf) / 2, 2)
         else:
-            r.reasons.append(f"LLM suggested {cat} ({conf:.2f}); rules kept {r.category}.")
+            r.reasons.append(f"LLM suggested {cat}, {pri} ({conf:.2f}); rules kept {r.category}.")
+            if more_urgent:
+                r.priority = pri
+                r.reasons.append(f"Priority raised to {pri} on the LLM's reading; a person confirms it.")
             r.confidence = round(max(0.3, min(r.confidence, conf) - 0.1), 2)
