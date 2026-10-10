@@ -47,9 +47,9 @@ refused. Reproduce with `python scripts/run_uc3_eval.py` and
 
 ## Contributer's
 
-Lovepreet Sharma
-Priyanshu Baghel
-Prashant Diwakar
-Claude.ai
-Codex
+Lovepreet Sharma, 
+Priyanshu Baghel, 
+Prashant Diwakar, 
+Claude.ai, 
+Codex.
 
