@@ -15,7 +15,7 @@ pip install -r requirements.txt
 cp .env.example .env            # set LLM_PROVIDER and its key (openrouter, openai, anthropic or ollama)
 
 python -m uvicorn app.main:app --port 8000
-# open http://localhost:8000/        → the console (Ask, Dashboard, Evaluation, Actions)
+# open http://localhost:8000/        → the console (Copilot, Dashboard, Evaluation, Drafts)
 #      http://localhost:8000/docs    → the API
 ```
 
@@ -54,21 +54,41 @@ the LLM is down, rate-limited or has no key, the copilot answers from the templa
 ## The console
 
 A static client of the API (`app/web/copilot/`: one HTML file, one stylesheet, one script,
-no build step), served by FastAPI at `/copilot/`.
+no build step, no dependencies), served by FastAPI at `/copilot/`. A Punjab Sports Mart app
+shell: sidebar with persona and store pickers, model status and theme; four views.
 
-- **Ask:** persona, store and the issue; example scenarios for triage, analytics and safety.
-  The result shows the decision (category, priority, confidence, escalation), the answer
-  with clickable citations, the cited policy text, the CSV files and findings, the draft
-  payloads and the agent trace with timings.
-- **Dashboard (bonus B2):** open cases, open P1 and P2, open cases by priority, category
-  and region, and weekly new cases per region as small multiples on one scale.
-- **Evaluation (M9):** the five target metrics and per-case results; runs the public test
-  cases in the background with or without the LLM.
-- **Actions (bonus B3):** every ticket, notification, vendor-claim draft, quality hold and
-  refund approval request, written to `data/copilot_actions.jsonl`. Nothing is sent.
+- **Copilot:** a conversation.
+  - **Home per persona.** Cashier, Store Manager, Inventory Associate and Customer Service
+    get one-tap common issues and their recent tickets; the Store Manager also sees open
+    P1/P2 cases; the Regional Manager starts on KPIs and the cases that need attention.
+  - **Live agents.** `/ask/stream` (Server-Sent Events) shows each agent finishing as it
+    runs; a masked card or phone number turns into a redaction chip in the user's own
+    message as soon as the Safety agent returns.
+  - **Ticket card.** Priority block, category, ticket ID, store, confidence ring, and an
+    escalation bar with team, queue and SLA. Tabs: *Answer* (key visual, the policy rule,
+    a tick-off checklist of next steps, the full ticket text), *Data* (visuals, findings,
+    files read), *Policy* (each cited section with the sentence that applies), *Drafts*,
+    *Trace*.
+  - **Data as pictures.** Receipts as "18 of 50" bars against the short-shipment line,
+    vendor fill and on-time rates on gauges with the warning line, root cause as a numbered
+    chain in policy check order, shelf vs system stock, shelf vs POS price, rankings, tables.
+  - **Citations in a side panel.** Any citation opens the section with the exact sentence
+    highlighted.
+  - **Follow-ups as quick replies.** "Which store?" becomes store chips (busiest first);
+    "anyone hurt?" becomes two buttons. A reply, tapped or typed, is added to the open issue.
+  - **Refusals** get their own card: what was detected, what was not done, and the
+    Security draft.
+- **Dashboard (bonus B2):** KPIs, open cases by priority, category and region, weekly new
+  cases per region as small multiples on one scale, and the open P1/P2 cases with a
+  *Triage* button that sends a case to the copilot.
+- **Evaluation (M9):** the five target metrics as score rings with the target marked, and
+  per-case results; runs the public test cases in the background with or without the LLM.
+- **Drafts (bonus B3):** every ticket, notification, vendor-claim draft, quality hold,
+  refund approval request and security incident, written to `data/copilot_actions.jsonl`,
+  filterable by type. Nothing is sent.
 
-Light and dark themes, keyboard submit (Ctrl/⌘ + Enter), and a layout that works from
-phone width up.
+Light and dark themes; Enter sends, Shift + Enter adds a line, `/` focuses the composer,
+Esc closes the panel; works from phone width up.
 
 ## Architecture: six cooperating agents
 
@@ -109,8 +129,8 @@ Code: `app/copilot/` (`safety.py`, `triage.py`, `data_agent.py`, `workflow.py`,
 | M9 evaluation | `scripts/run_uc3_eval.py` or the Evaluation tab → `predictions.csv` (schema columns) + metrics table |
 | M10 multi-agent | the six agents above, each with one job and a typed result |
 | B1 root cause | follows the check order in `03_…#root-cause-hints` (inventory → reorder → receipts → warehouse → vendor → cases → transfer) |
-| B2 dashboard | Dashboard tab |
-| B3 mock workflow | Actions tab / `data/copilot_actions.jsonl` |
+| B2 dashboard | Dashboard view |
+| B3 mock workflow | Drafts view / `data/copilot_actions.jsonl` |
 
 ## Results on the public test cases
 
@@ -134,15 +154,15 @@ reply was cut off and replaced).
 
 Eleven public cases are a small sample. We also checked 30 prompts we wrote ourselves
 (typos, paraphrases, other stores and SKUs, injection variants); all pass, but we set
-their expected labels. 38 unit tests cover the copilot.
+their expected labels. 44 unit tests cover the copilot.
 
 ## Demo script (guide, section 18)
 
 1. **Normal triage:** "One card reader down" → POS, P3, runbook steps, no escalation, POS ticket draft.
 2. **Data-backed root cause:** "Bat out of stock again" → short shipments 18/50 and 20/45, vendor V001 fill rate 68%, system 4 vs shelf 0, transfer option from ST001, vendor-claim draft. Or "Tennis balls for an academy" → warehouse WH001 at zero.
 3. **Safety:** "Prompt injection" → refusal, no data accessed, Security P1. Then "Card number in a ticket" → masked, explained, not stored.
-4. **Flow:** the agent trace under any answer.
-5. **Evaluation:** Evaluation tab → Run with LLM.
+4. **Flow:** the live agent steps while it runs, then the Trace tab.
+5. **Evaluation:** Evaluation view → Run with LLM.
 
 ### Answers to the judges' likely questions
 
