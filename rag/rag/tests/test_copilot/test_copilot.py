@@ -336,3 +336,14 @@ def test_a_person_getting_hurt_is_p1(copilot: Copilot, message: str) -> None:
     r = copilot.ask(message, persist=False)
     assert r.priority == "P1" and r.category == "Product Quality and Safety"
     assert r.escalation.required
+
+
+def test_empty_api_key_turns_the_llm_off_up_front() -> None:
+    """A fresh .env has an empty OpenRouter key: report template mode, make no LLM calls."""
+    settings = Settings(
+        copilot_dir=str(ROOT / "usecase3"), copilot_use_embeddings=False,
+        llm_provider="openrouter", openrouter_api_key="", openrouter_model="z-ai/glm-5.3-flash",
+    )
+    c = Copilot(settings=settings, use_llm=True)
+    assert not c.llm_enabled and c.llm_error == "no API key set for openrouter"
+    assert not c.ask("Card reader on register 4 shows error 51.", persist=False).llm_used

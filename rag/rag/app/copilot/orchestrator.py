@@ -65,11 +65,16 @@ class Copilot:
         if self.settings.copilot_use_llm if use_llm is None else use_llm:
             from app.llm.factory import get_llm
 
-            try:
-                llm = get_llm(self.llm_settings)
-            except Exception as exc:  # missing key, unknown provider: keep working on templates
-                self.llm_error = str(exc)
+            if self.llm_settings.requires_api_key() and not self.llm_settings.get_llm_api_key().strip():
+                # Some clients accept an empty key and only fail per request: say so up front.
+                self.llm_error = f"no API key set for {self.llm_settings.llm_provider.value}"
                 logger.warning("copilot_llm_unavailable", error=self.llm_error)
+            else:
+                try:
+                    llm = get_llm(self.llm_settings)
+                except Exception as exc:  # bad key format, unknown provider: keep working on templates
+                    self.llm_error = str(exc)
+                    logger.warning("copilot_llm_unavailable", error=self.llm_error)
 
         self.safety = SafetyAgent()
         self.triage = TriageAgent(self.data, llm=llm if self.settings.copilot_llm_triage else None)
