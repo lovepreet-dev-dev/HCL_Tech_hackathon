@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "copilot-api",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/lovepreet/Desktop/hackthon/HCL_Tech_hackathon/rag/rag && exec venv/bin/python -m uvicorn app.main:app --port 8000"],
+      "port": 8000,
+      "url": "http://localhost:8000"
+    }
+  ]
+}
