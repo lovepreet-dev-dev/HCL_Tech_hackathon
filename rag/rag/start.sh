@@ -19,6 +19,10 @@ fi
 if ! cmp -s requirements.txt venv/requirements.installed; then
   echo "Installing dependencies (the first run takes 5-10 minutes)..."
   venv/bin/python -m pip install --upgrade pip
+  if [ "$(uname -s)" = "Linux" ]; then
+    # The default Linux torch wheel bundles GBs of CUDA libraries; the embedding model runs on CPU.
+    venv/bin/python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+  fi
   venv/bin/python -m pip install -r requirements.txt
   cp requirements.txt venv/requirements.installed
 fi
