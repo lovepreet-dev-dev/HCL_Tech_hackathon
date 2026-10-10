@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,9 +12,10 @@ from app.main import app
 
 
 @pytest.fixture
-def client() -> TestClient:
-    """Create a test client."""
-    return TestClient(app)
+def client() -> Iterator[TestClient]:
+    """Create a test client. Entering it runs the app's startup, which creates the database tables."""
+    with TestClient(app) as c:
+        yield c
 
 
 class TestHealthEndpoint:
