@@ -96,6 +96,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def _seed_default_admin():
     """Create a default admin user when auth is disabled."""
 
+    from sqlalchemy.exc import IntegrityError
+
     from app.models.database import _get_session_factory
     from app.models.user import Role, User
     from app.services.auth_service import create_user
@@ -116,6 +118,9 @@ def _seed_default_admin():
                 get_logger(__name__).info("default_admin_seeded", email="admin@example.com")
         finally:
             db.close()
+    except IntegrityError:
+        # Several workers start at once on a shared database; another one created it first.
+        get_logger(__name__).info("default_admin_already_seeded", email="admin@example.com")
     except Exception as e:
         get_logger(__name__).warning("admin_seed_failed", error=str(e))
 

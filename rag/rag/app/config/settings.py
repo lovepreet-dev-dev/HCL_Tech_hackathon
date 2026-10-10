@@ -414,7 +414,10 @@ class Settings(BaseSettings):
 
     database_url: str = Field(
         default="sqlite:///./data/rag.db",
-        description="SQLAlchemy database URL (SQLite or PostgreSQL).",
+        description=(
+            "SQLAlchemy database URL. SQLite for one instance; PostgreSQL in production, e.g. "
+            "postgresql+psycopg://user:password@host:5432/rag (postgres:// URLs are accepted too)."
+        ),
     )
 
     # ── Data Paths ───────────────────────────────────────────────────────
@@ -705,6 +708,12 @@ class Settings(BaseSettings):
 
         if self.log_level == "DEBUG":
             issues.append("Log level is DEBUG — expect high verbosity in production.")
+
+        if self.database_url.startswith("sqlite"):
+            issues.append(
+                "DATABASE_URL points at SQLite, a file on this machine — use PostgreSQL "
+                "when more than one app instance runs, or users and drafts diverge."
+            )
 
         return issues
 

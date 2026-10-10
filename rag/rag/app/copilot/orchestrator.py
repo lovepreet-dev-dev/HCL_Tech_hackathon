@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from app.config.settings import LLMProvider, Settings, get_settings
+from app.copilot.actions import get_action_store
 from app.copilot.composer import Composer
 from app.copilot.data_agent import DataAgent, DataResult, RetailData
 from app.copilot.retrieval import KnowledgeBase, RetrievalAgent
@@ -76,7 +77,7 @@ class Copilot:
         self.workflow = WorkflowAgent(
             self.data,
             self.settings.copilot_confidence_threshold,
-            actions_file=Path(self.settings.data_dir) / "copilot_actions.jsonl",
+            store=get_action_store(),
         )
         self.retrieval = RetrievalAgent(self.kb)
         self.composer = Composer(llm=llm, anchor_label=f"{self.data.anchor:%Y-%m-%d %H:%M} IST", retail=self.data)

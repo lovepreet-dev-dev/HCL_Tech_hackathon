@@ -34,6 +34,8 @@ ollama==0.6.2
 
 # Database
 sqlalchemy==2.0.36
+# PostgreSQL driver (psycopg 3); the binary wheel needs no system libpq
+psycopg[binary]==3.2.3
 
 # Retail Operations Copilot (Use Case 3): CSV analytics
 pandas==2.2.3

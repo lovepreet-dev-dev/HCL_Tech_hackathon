@@ -9,11 +9,16 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import StaticPool, create_engine
+from sqlalchemy.orm import sessionmaker
 
 from app.config.settings import Settings
+from app.copilot.actions import ActionStore
 from app.copilot.orchestrator import Copilot
 from app.copilot.safety import SafetyAgent, mask_pii
 from app.ingestion.chunking import chunk_markdown_by_heading, heading_slug
+from app.models.copilot import CopilotAction
+from app.models.database import Base
 
 ROOT = Path(__file__).resolve().parents[2]
 CASES = list(csv.DictReader((ROOT / "usecase3/evaluation/public_test_cases.csv").open(encoding="utf-8")))
@@ -27,6 +32,14 @@ def copilot() -> Copilot:
         copilot_use_llm=False,
     )
     return Copilot(settings=settings, use_llm=False)
+
+
+@pytest.fixture
+def action_store() -> ActionStore:
+    """Drafts go to a private in-memory database, never the real one."""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(bind=engine, tables=[CopilotAction.__table__])
+    return ActionStore(sessionmaker(bind=engine))
 
 
 class TestSafety:
@@ -127,19 +140,20 @@ class TestDataAndWorkflow:
         assert r.confidence < 0.6 and r.escalation.required and r.follow_up_question
 
 
-def test_api_endpoint(copilot: Copilot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_api_endpoint(copilot: Copilot, action_store: ActionStore, monkeypatch: pytest.MonkeyPatch) -> None:
     import app.api.copilot as api
     from app.main import app
 
     monkeypatch.setattr(api, "get_copilot", lambda: copilot)
-    monkeypatch.setattr(copilot.workflow, "actions_file", tmp_path / "actions.jsonl")  # never touch real drafts
+    monkeypatch.setattr(api, "get_action_store", lambda: action_store)
+    monkeypatch.setattr(copilot.workflow, "store", action_store)  # never touch real drafts
     client = TestClient(app)
     res = client.post("/api/v1/copilot/ask", json={"message": "All registers in Store ST003 cannot process card payments."})
     assert res.status_code == 200
     body = res.json()
     assert body["priority"] == "P1" and body["escalation"]["required"]
     assert client.get("/api/v1/copilot/dashboard").json()["open_cases"] > 0
-    drafts = [json.loads(x) for x in (tmp_path / "actions.jsonl").read_text().splitlines()]
+    drafts = client.get("/api/v1/copilot/actions").json()
     assert {d["type"] for d in drafts} >= {"ticket", "notification"}
     assert all(d["priority"] == "P1" for d in drafts)
 
@@ -276,12 +290,12 @@ def test_copilot_model_override_leaves_the_rag_model_alone() -> None:
     assert c.composer.llm.max_retries == settings.copilot_llm_max_retries
 
 
-def test_stream_sends_each_agent_then_the_result(copilot: Copilot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_stream_sends_each_agent_then_the_result(copilot: Copilot, action_store: ActionStore, monkeypatch: pytest.MonkeyPatch) -> None:
     import app.api.copilot as api
     from app.main import app
 
     monkeypatch.setattr(api, "get_copilot", lambda: copilot)
-    monkeypatch.setattr(copilot.workflow, "actions_file", tmp_path / "actions.jsonl")
+    monkeypatch.setattr(copilot.workflow, "store", action_store)
     with TestClient(app).stream("POST", "/api/v1/copilot/ask/stream",
                                 json={"message": "Tennis Ball Pack is not available at Store ST005 for an academy order."}) as res:
         assert res.headers["content-type"].startswith("text/event-stream")

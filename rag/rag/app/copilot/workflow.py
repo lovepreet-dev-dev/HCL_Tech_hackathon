@@ -2,24 +2,28 @@
 
 Routing comes from ``escalation_matrix.csv``; the escalation decision follows
 the SOP escalation policy and the human-in-the-loop list in
-``05_responsible_ai_policy.md``. Actions are structured payloads written to a
-local JSONL file: nothing is sent to a real system.
+``05_responsible_ai_policy.md``. Actions are structured payloads stored in the
+application database (``copilot_actions`` table): nothing is sent to a real system.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.copilot.actions import ActionStore
 from app.copilot.data_agent import DataResult, Entities, RetailData
 from app.copilot.safety import SafetyResult
 from app.copilot.schemas import Escalation
 from app.copilot.triage import SEVERITY, TriageResult
+from app.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 HITL = "05_responsible_ai_policy.md#human-in-the-loop"
 
@@ -41,10 +45,10 @@ def _words(text: str) -> set[str]:
 class WorkflowAgent:
     name = "Workflow agent"
 
-    def __init__(self, data: RetailData, confidence_threshold: float, actions_file: Path | None = None) -> None:
+    def __init__(self, data: RetailData, confidence_threshold: float, store: ActionStore | None = None) -> None:
         self.data = data
         self.threshold = confidence_threshold
-        self.actions_file = actions_file
+        self.store = store
 
     def _route(self, triage: TriageResult, context: str) -> dict[str, Any]:
         rows = self.data.escalation[self.data.escalation.category == triage.category]
@@ -222,9 +226,11 @@ class WorkflowAgent:
         return actions
 
     def persist(self, actions: list[dict[str, Any]]) -> None:
-        if not self.actions_file or not actions:
+        """Store the drafts. A database outage is logged, not raised: the answer and its
+        drafts still reach the user, as they do when the LLM is down."""
+        if self.store is None or not actions:
             return
-        self.actions_file.parent.mkdir(parents=True, exist_ok=True)
-        with self.actions_file.open("a", encoding="utf-8") as fh:
-            for a in actions:
-                fh.write(json.dumps({"created_at": datetime.now().isoformat(timespec="seconds"), **a}, default=str) + "\n")
+        try:
+            self.store.save(actions)
+        except SQLAlchemyError as exc:
+            logger.error("copilot_actions_persist_failed", error=str(exc), count=len(actions))

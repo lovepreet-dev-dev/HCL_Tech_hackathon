@@ -29,7 +29,8 @@ python scripts/run_uc3_eval.py --cases path/to/hidden_cases.csv   # same columns
 pytest tests/test_copilot -q
 ```
 
-Docker: `docker compose up --build`, then the console is at `http://localhost:8000/`.
+Docker: set `POSTGRES_PASSWORD` in `.env`, run `docker compose up --build`, then the console is at
+`http://localhost:8000/`. Compose runs PostgreSQL for users, chat history and drafted actions.
 
 ### Settings (env vars or `.env`)
 
@@ -84,8 +85,8 @@ shell: sidebar with persona and store pickers, model status and theme; four view
 - **Evaluation (M9):** the five target metrics as score rings with the target marked, and
   per-case results; runs the public test cases in the background with or without the LLM.
 - **Drafts (bonus B3):** every ticket, notification, vendor-claim draft, quality hold,
-  refund approval request and security incident, written to `data/copilot_actions.jsonl`,
-  filterable by type. Nothing is sent.
+  refund approval request and security incident, stored in the `copilot_actions` table (SQLite
+  locally, PostgreSQL in production), filterable by type. Nothing is sent.
 
 Light and dark themes; Enter sends, Shift + Enter adds a line, `/` focuses the composer,
 Esc closes the panel; works from phone width up.
@@ -130,7 +131,7 @@ Code: `app/copilot/` (`safety.py`, `triage.py`, `data_agent.py`, `workflow.py`,
 | M10 multi-agent | the six agents above, each with one job and a typed result |
 | B1 root cause | follows the check order in `03_…#root-cause-hints` (inventory → reorder → receipts → warehouse → vendor → cases → transfer) |
 | B2 dashboard | Dashboard view |
-| B3 mock workflow | Drafts view / `data/copilot_actions.jsonl` |
+| B3 mock workflow | Drafts view / `copilot_actions` table |
 
 ## Results on the public test cases
 
@@ -197,5 +198,5 @@ are not part of this demo.
 - **Policy conflicts** are detected when two categories with strong signals give different priorities; a conflict inside one policy text is not.
 - **Vendor-quality ranking** counts complaints per vendor via SKU → vendor without normalising by sales volume, so it says where to look, not who is at fault (the answer says this too).
 - **`employee_master.csv`** is loaded but not used; the next step is checking the requester's escalation level.
-- **Drafts only.** Nothing is sent; payloads go to `data/copilot_actions.jsonl`.
+- **Drafts only.** Nothing is sent; payloads go to the `copilot_actions` table.
 - **LLM availability and latency** depend on the provider: free OpenRouter models are often rate-limited (template fallback), and a reasoning model takes about 25 s per answer.

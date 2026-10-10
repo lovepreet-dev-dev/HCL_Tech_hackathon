@@ -20,6 +20,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.config.settings import get_settings
+from app.copilot.actions import get_action_store
 from app.copilot.orchestrator import Copilot, get_copilot
 from app.copilot.schemas import CopilotRequest, CopilotResponse
 from app.utils.logging import get_logger
@@ -128,11 +129,7 @@ def dashboard() -> dict[str, Any]:
 
 @router.get("/actions", summary="Mock tickets, notifications and claims created so far")
 def actions(limit: int = Query(default=50, ge=1, le=500)) -> list[dict[str, Any]]:
-    path = Path(get_settings().data_dir) / "copilot_actions.jsonl"
-    if not path.exists():
-        return []
-    lines = path.read_text(encoding="utf-8").splitlines()[-limit:]
-    return [json.loads(line) for line in reversed(lines) if line.strip()]
+    return get_action_store().recent(limit)
 
 
 @router.get("/metrics", summary="Latest evaluation run on the public test cases")

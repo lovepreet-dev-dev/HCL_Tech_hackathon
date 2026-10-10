@@ -1,4 +1,26 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rag-postgres
+    # No "ports:": only containers on this network can reach the database.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-rag}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
   rag-api:
     build:
       context: .
@@ -8,8 +30,14 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      # Overrides any DATABASE_URL in .env: in Docker the API always uses the postgres service.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rag}
     volumes:
       - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     deploy:
       resources:
@@ -77,6 +105,7 @@ services:
   #     - chroma_data:/chroma/chroma
   #   restart: unless-stopped
 
-# volumes:
-#   qdrant_data:
-#   chroma_data:
+volumes:
+  postgres_data:
+  # qdrant_data:
+  # chroma_data:

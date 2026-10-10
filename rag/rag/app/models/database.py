@@ -1,13 +1,14 @@
 """Database configuration and session management.
 
-Uses SQLAlchemy with SQLite (default) or PostgreSQL.
+Uses SQLAlchemy with SQLite (default, single instance) or PostgreSQL (production:
+one database shared by every app instance). PostgreSQL goes through psycopg 3.
 """
 
 from __future__ import annotations
 
 from typing import Generator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config.settings import get_settings
@@ -26,12 +27,27 @@ class Base(DeclarativeBase):
 _engine = None
 _SessionLocal = None
 
+# Any constant works; it only has to be the same in every app instance.
+_SCHEMA_LOCK_ID = 7261670
+
+
+def normalize_database_url(url: str) -> str:
+    """Point PostgreSQL URLs that name no driver at psycopg 3.
+
+    Hosted providers hand out ``postgres://`` (which SQLAlchemy rejects) or
+    ``postgresql://`` (which SQLAlchemy maps to psycopg2, not installed here).
+    """
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
 
 def _get_engine():
     global _engine
     if _engine is None:
         settings = get_settings()
-        database_url = settings.database_url
+        database_url = normalize_database_url(settings.database_url)
 
         connect_args = {}
         pool_kwargs = {
@@ -88,16 +104,32 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def _register_models() -> None:
+    """Import every model module so its tables are on ``Base.metadata``."""
+    import app.models.copilot  # noqa: F401
+    import app.models.user  # noqa: F401
+
+
 def init_db() -> None:
-    """Create all tables."""
+    """Create missing tables.
+
+    On PostgreSQL a transaction-scoped advisory lock serialises this step, so
+    several workers or containers starting at once do not race to create the
+    same table.
+    """
+    _register_models()
     engine = _get_engine()
-    Base.metadata.create_all(bind=engine)
-    logger.info("database_tables_created")
+    with engine.begin() as conn:
+        if conn.dialect.name == "postgresql":
+            conn.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": _SCHEMA_LOCK_ID})
+        Base.metadata.create_all(bind=conn)
+    logger.info("database_tables_created", dialect=engine.dialect.name)
 
 
 def reset_db() -> None:
     """Drop and recreate all tables (for testing)."""
     global _engine, _SessionLocal
+    _register_models()
     engine = _get_engine()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)

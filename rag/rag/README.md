@@ -74,7 +74,7 @@ rag/
 ├── frontend/                # Next.js dashboard (chat, documents, settings, users)
 ├── tests/                   # Pytest suite (chunking, ingestion, retriever, api, …)
 ├── scripts/seed_data.py     # Sample data ingestion
-├── data/                    # Runtime data (index, uploads, SQLite) — not committed
+├── data/                    # Runtime data (index, uploads, SQLite file) — not committed
 ├── docker-compose.yml       # api + frontend + nginx
 └── .env.example
 ```
@@ -84,11 +84,14 @@ rag/
 ### Docker (recommended)
 
 ```bash
-cp .env.example .env         # add your API key (or set LLM_PROVIDER=ollama)
+cp .env.example .env         # add your API key (or set LLM_PROVIDER=ollama) and POSTGRES_PASSWORD
 docker compose up --build
 # API:      http://localhost:8000/docs
 # Frontend: http://localhost:3000
 ```
+
+Compose starts PostgreSQL 16 next to the API (data in the `postgres_data` volume, no port
+published to the host) and points the API's `DATABASE_URL` at it.
 
 ### Local
 
@@ -99,6 +102,21 @@ cp .env.example .env
 python scripts/seed_data.py    # optional sample data
 uvicorn app.main:app --reload --port 8000
 ```
+
+### Database
+
+Users, chat history, audit logs, feedback, settings and the copilot's drafted actions are
+stored through SQLAlchemy in the database named by `DATABASE_URL`:
+
+| Setup | `DATABASE_URL` |
+|---|---|
+| One local instance (default) | `sqlite:///./data/rag.db` |
+| Production, or more than one worker/container | `postgresql+psycopg://user:password@host:5432/rag` (`postgres://…` works too) |
+
+Tables are created at startup; on PostgreSQL an advisory lock lets several workers start at
+once safely. The retail CSVs and policy files are not stored in the database: the copilot
+reads them into memory at startup. `pytest tests/test_postgres.py` runs the PostgreSQL tests
+when `TEST_DATABASE_URL` points at an empty, disposable database.
 
 **No API key?** Set `LLM_PROVIDER=ollama` (with [Ollama](https://ollama.com) running locally) or use an OpenRouter free-tier model.
 

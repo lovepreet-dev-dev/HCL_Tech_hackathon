@@ -31,7 +31,7 @@ CSV row, and if the LLM fails the copilot still answers from a template.
                │            │           ▼                       ▼              ▼              ▼
                │            │     9 CSV files            escalation_      5 policy .md    LLM (writes answer)
                │            │     (pandas)               matrix.csv       27 sections     (rewording only)
-               │            ▼                            + actions.jsonl  BM25 + bge-small
+               │            ▼                            + actions table  BM25 + bge-small
                │      550 labelled tickets
                │      (similar-ticket vote)
                ▼

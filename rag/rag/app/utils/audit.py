@@ -38,14 +38,16 @@ def log_audit(
     Returns:
         The created ``AuditLog`` instance.
     """
+    # PostgreSQL enforces VARCHAR lengths (SQLite does not), and the User-Agent
+    # header is whatever the client sends, so clip to the column sizes.
     entry = AuditLog(
         user_id=user_id,
-        action=action,
-        resource_type=resource_type,
-        resource_id=resource_id,
+        action=action[:100],
+        resource_type=resource_type[:50] if resource_type else resource_type,
+        resource_id=resource_id[:36] if resource_id else resource_id,
         details=details,
-        ip_address=ip_address,
-        user_agent=user_agent,
+        ip_address=ip_address[:45] if ip_address else ip_address,
+        user_agent=user_agent[:500] if user_agent else user_agent,
     )
     db.add(entry)
     db.commit()

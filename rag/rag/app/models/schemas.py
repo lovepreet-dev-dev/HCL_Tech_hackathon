@@ -120,6 +120,7 @@ class ChatRequest(BaseModel):
     )
     session_id: Optional[str] = Field(
         default=None,
+        max_length=36,  # chat_sessions.id is VARCHAR(36); clients send UUIDs
         description="Chat session ID. Generated if omitted.",
     )
     user_id: Optional[str] = Field(
@@ -135,7 +136,7 @@ class ChatRequest(BaseModel):
 class FeedbackRequest(BaseModel):
     """User feedback on a response."""
 
-    query_id: str = Field(..., min_length=1)
+    query_id: str = Field(..., min_length=1, max_length=36)  # feedback.query_id is VARCHAR(36)
     rating: int = Field(..., ge=1, le=5)
     comment: Optional[str] = Field(default=None, max_length=2000)
 
