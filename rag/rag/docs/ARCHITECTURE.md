@@ -84,8 +84,9 @@ Input: *"English Willow Cricket Bat is out of stock again at Store ST002. Why is
 | **Regex** | Safety agent, priority rules | Deterministic and testable; this is where errors are most expensive. |
 | **LangChain** (chat-model wrapper only) | the LLM that writes answers | One interface for OpenRouter, OpenAI, Anthropic or local Ollama: switch with `LLM_PROVIDER` in `.env`. |
 | **HTML + CSS + vanilla JS** | the web console, served by FastAPI | No build step and no dependencies; one origin, so the strict CSP stays on; light and dark themes. |
-| **pytest** | 38 copilot tests (187 in total) | Locks the safety rules and the public cases so later changes can't break them. |
-| **Docker** | packaging | `docker compose up` runs the API with the KB and CSVs inside the image. |
+| **PostgreSQL 16** (SQLAlchemy + psycopg 3) | users, chat history, audit log, drafted actions | One database every app instance shares. SQLite is a file on one machine, so with two workers or containers each would keep its own users and drafts. SQLite stays the default for a single local instance; `DATABASE_URL` picks the engine. |
+| **pytest** | 52 copilot tests (204 in total, 3 of them against a real PostgreSQL) | Locks the safety rules and the public cases so later changes can't break them. |
+| **Docker** | packaging | `docker compose up` runs PostgreSQL and the API, with the KB and CSVs inside the image. |
 
 ## 5. Guardrails (Responsible AI, M8)
 
@@ -105,7 +106,29 @@ Input: *"English Willow Cricket Bat is out of stock again at Store ST002. Why is
 85 / 100 / 75). Eleven cases is a small sample, so we also tested 30 prompts we wrote
 (typos, paraphrases, other stores); hidden prompts can still find gaps.
 
-## 7. What we reused vs. built
+## 7. Where data lives
+
+Two kinds of data, kept apart on purpose:
+
+| Data | Where | Written by | Why there |
+|---|---|---|---|
+| 9 retail CSVs, 5 policy `.md` files | files in `usecase3/`, loaded into memory at startup | nobody (read-only snapshot) | A frozen snapshot of ~3,000 rows; pandas in memory is exact and needs no schema. In production this data belongs to the POS, inventory and ticketing systems, so the copilot should read it from them, not keep its own copy. |
+| Drafted actions | `copilot_actions` table (payload as JSONB on PostgreSQL) | Workflow agent, through `ActionStore` | Drafts are what the copilot owns. A table is shared by every instance and can be queried by store, type or priority. |
+| Users, sessions, chat history, feedback, audit log, settings | the same database | API | Shared state for the dashboard and login. |
+| Evaluation results | `usecase3/evaluation/` files | evaluation run | Overwritten per run; read by `/metrics` and `/predictions`. |
+
+The database is SQLite by default (`sqlite:///./data/rag.db`) and PostgreSQL in production
+(`DATABASE_URL=postgresql+psycopg://…`; `docker compose` sets it). Three details matter on
+PostgreSQL that SQLite hides:
+
+- **Workers starting together.** Tables are created at startup inside a PostgreSQL advisory
+  lock; without it, six simultaneous startups failed with `IntegrityError` every time.
+- **String lengths are enforced.** Client-supplied values are clipped (audit-log headers) or
+  rejected with 422 (`session_id`, `query_id` longer than 36) instead of failing with a 500.
+- **The database can be down.** Saving drafts is logged on failure, not raised: the answer
+  and its drafts still reach the user, as with an LLM failure.
+
+## 8. What we reused vs. built
 
 **Reused from our RAG engine:** `BM25Search`, `reciprocal_rank_fusion`, the bge-small
 embedding factory, the LLM provider factory, settings, logging, the FastAPI app.
@@ -113,7 +136,7 @@ embedding factory, the LLM provider factory, settings, logging, the FastAPI app.
 with `file.md#slug` citations, the API router, the web console, the evaluation module and
 the tests.
 
-## 8. Questions judges may ask
+## 9. Questions judges may ask
 
 | Question | Short answer |
 |---|---|
@@ -126,3 +149,5 @@ the tests.
 | Why not just one LLM prompt? | Exactness: masking, counting and routing must not depend on a model. And it's explainable. |
 | What if the LLM fails or invents something? | Its citations are checked against the retrieved list, a cut-off answer is replaced by the template answer, and output is re-masked. No key or no network: template answers. |
 | Why no vector database? | 27 sections fit in memory; FAISS or Chroma would only add moving parts. |
+| Why PostgreSQL and not SQLite? | SQLite is a file on one machine: with two instances each keeps its own users and drafts. PostgreSQL is one shared server; SQLite stays for local single-instance runs. |
+| Why aren't the CSVs in the database? | They are a read-only snapshot owned by other systems; copying them would create a second, stale copy. The database holds only what the copilot owns. |
