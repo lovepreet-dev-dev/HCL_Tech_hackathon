@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operations Copilot · Punjab Sports Mart</title>
+  <meta name="description" content="Store issue triage with cited policy, data-backed root cause and safe escalation.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'%3E%3Crect width='36' height='36' rx='9' fill='%2316624a'/%3E%3Ccircle cx='18' cy='18' r='10.5' fill='%23b0281e'/%3E%3Cpath d='M11.6 11.4c3.6 3.2 3.6 10 0 13.2M24.4 11.4c-3.6 3.2-3.6 10 0 13.2' fill='none' stroke='%23f4e6c6' stroke-width='1.5' stroke-dasharray='1.6 1.7'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="console.css">
+  <script src="console.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Navigation">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 36 36" aria-hidden="true">
+          <rect width="36" height="36" rx="9" fill="#16624a"/>
+          <circle cx="18" cy="18" r="10.5" fill="#b0281e"/>
+          <path d="M11.6 11.4c3.6 3.2 3.6 10 0 13.2M24.4 11.4c-3.6 3.2-3.6 10 0 13.2" fill="none" stroke="#f4e6c6" stroke-width="1.5" stroke-dasharray="1.6 1.7"/>
+        </svg>
+        <div>
+          <div class="brand-name">Punjab Sports Mart</div>
+          <div class="brand-sub">Operations Copilot</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item" type="button" data-view="copilot"><span data-icon="chat"></span>Copilot</button>
+        <button class="nav-item" type="button" data-view="dashboard"><span data-icon="chart"></span>Dashboard</button>
+        <button class="nav-item" type="button" data-view="evaluation"><span data-icon="check"></span>Evaluation</button>
+        <button class="nav-item" type="button" data-view="drafts"><span data-icon="inbox"></span>Drafts<span class="count" id="drafts-count" hidden></span></button>
+      </nav>
+
+      <div class="side-label">Workspace</div>
+      <div class="side-field">
+        <label for="persona">Signed in as</label>
+        <select class="side-select" id="persona">
+          <option>Cashier</option>
+          <option>Store Manager</option>
+          <option>Inventory Associate</option>
+          <option>Customer Service</option>
+          <option>Regional Manager</option>
+        </select>
+      </div>
+      <div class="side-field">
+        <label for="store">Store</label>
+        <select class="side-select" id="store"><option value="">All stores</option></select>
+      </div>
+      <div class="side-field">
+        <button class="chip-btn" type="button" id="new-thread"><span data-icon="plus"></span> New conversation</button>
+      </div>
+
+      <div class="side-foot">
+        <div class="model-line" id="model-line"><span class="dot"></span><span>Connecting…</span></div>
+        <div id="anchor-line"></div>
+        <div class="theme-row">
+          <span>Theme</span>
+          <button class="chip-btn" type="button" id="theme-toggle">Auto</button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <div class="mobile-bar">
+        <button class="icon-btn" type="button" id="menu-btn" aria-label="Open navigation"><span data-icon="menu"></span></button>
+        <svg class="brand-mark" viewBox="0 0 36 36" aria-hidden="true">
+          <rect width="36" height="36" rx="9" fill="#16624a"/>
+          <circle cx="18" cy="18" r="10.5" fill="#b0281e"/>
+          <path d="M11.6 11.4c3.6 3.2 3.6 10 0 13.2M24.4 11.4c-3.6 3.2-3.6 10 0 13.2" fill="none" stroke="#f4e6c6" stroke-width="1.5" stroke-dasharray="1.6 1.7"/>
+        </svg>
+        <b>Operations Copilot</b>
+      </div>
+
+      <section class="view copilot" id="view-copilot" aria-label="Copilot">
+        <div class="thread"><div class="thread-inner" id="thread" aria-live="polite"></div></div>
+        <div class="composer-dock">
+          <form class="composer" id="composer" autocomplete="off">
+            <label class="sr-only" for="message">Describe a store issue or ask about the data</label>
+            <textarea id="message" rows="1" maxlength="4000" placeholder="Describe a store issue or ask about the data…"></textarea>
+            <div class="composer-row">
+              <div class="hint">
+                <span class="context-chip" id="context-chip"></span>
+                <span><kbd>Enter</kbd> to send · <kbd>Shift</kbd> + <kbd>Enter</kbd> new line</span>
+              </div>
+              <button class="send" id="send" type="submit" aria-label="Send" disabled><span data-icon="send"></span></button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="view" id="view-dashboard" aria-label="Dashboard" hidden>
+        <header class="view-head">
+          <div>
+            <h1 class="view-title">Store operations</h1>
+            <p class="view-sub" id="dash-sub">Live from support_cases.csv and store_master.csv</p>
+          </div>
+          <button class="btn" type="button" id="dash-refresh"><span data-icon="refresh"></span>Refresh</button>
+        </header>
+        <div class="view-body" id="dashboard"></div>
+      </section>
+
+      <section class="view" id="view-evaluation" aria-label="Evaluation" hidden>
+        <header class="view-head">
+          <div>
+            <h1 class="view-title">Evaluation</h1>
+            <p class="view-sub">The public test cases, scored against the five targets. Results are written to predictions.csv.</p>
+          </div>
+          <div class="toolbar">
+            <button class="btn" type="button" id="eval-rules">Run without LLM</button>
+            <button class="btn btn-primary" type="button" id="eval-llm"><span data-icon="play"></span>Run with LLM</button>
+          </div>
+        </header>
+        <div class="view-body">
+          <div id="eval-progress"></div>
+          <div id="evaluation"></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-drafts" aria-label="Drafts" hidden>
+        <header class="view-head">
+          <div>
+            <h1 class="view-title">Workflow drafts</h1>
+            <p class="view-sub">Tickets, notifications, vendor claims, quality holds and refund requests prepared by the copilot. Nothing is sent; each waits for a person.</p>
+          </div>
+          <div class="toolbar">
+            <select id="drafts-filter" aria-label="Filter by type"><option value="">All types</option></select>
+            <button class="btn" type="button" id="drafts-refresh"><span data-icon="refresh"></span>Refresh</button>
+          </div>
+        </header>
+        <div class="view-body" id="drafts"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title">
+    <div class="panel-head">
+      <div>
+        <h3 id="panel-title"></h3>
+        <span class="mono" id="panel-sub"></span>
+      </div>
+      <button class="icon-btn" type="button" id="panel-close" aria-label="Close"><span data-icon="x"></span></button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+  </aside>
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+</body>
+</html>
