@@ -44,3 +44,12 @@ all 100% (11/11). On reworded prompts never used for tuning (typos, Hinglish, pa
 indirect injections): category 16/18, priority 13/18, attacks refused 4/4, no normal request
 refused. Reproduce with `python scripts/run_uc3_eval.py` and
 `python scripts/run_paraphrase_eval.py` in `rag/rag`.
+
+## Contributer's
+
+Lovepreet Sharma
+Priyanshu Baghel
+Prashant Diwakar
+Claude.ai
+Codex
+
