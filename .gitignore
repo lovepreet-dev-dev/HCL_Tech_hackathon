@@ -1,0 +1,19 @@
+# OS and editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Secrets and local environments
+.env
+.env.local
+venv/
+.venv/
+
+# Build and cache output
+__pycache__/
+*.py[cod]
+node_modules/
+.next/
+.pytest_cache/
+.ruff_cache/
